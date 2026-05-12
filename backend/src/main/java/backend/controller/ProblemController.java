@@ -1,21 +1,25 @@
 package backend.controller;
 
 import backend.model.Problem;
+import backend.repository.ProblemListRepository;
 import backend.repository.ProblemRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/problems")
 public class ProblemController {
 
     private final ProblemRepository problemRepository;
+    private final ProblemListRepository problemListRepository;
 
-    public ProblemController(ProblemRepository problemRepository) {
+    public ProblemController(ProblemRepository problemRepository, ProblemListRepository problemListRepository) {
         this.problemRepository = problemRepository;
+        this.problemListRepository = problemListRepository;
     }
 
     @GetMapping
@@ -32,6 +36,12 @@ public class ProblemController {
             return ResponseEntity.status(401).body("{\"error\": \"Authentication required\"}");
         }
         
+        Long listId = p.getListId() == null ? 1L : p.getListId();
+        if (!problemListRepository.existsById(listId)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Selected list does not exist"));
+        }
+
+        p.setListId(listId);
         Problem saved = problemRepository.save(p);
         return ResponseEntity.ok(saved);
     }

@@ -14,6 +14,7 @@ public class Goal {
     private String title;
     private boolean completed;
     private LocalDate dueDate;
+    private String listName;
 
     public Goal() {}
 
@@ -21,6 +22,7 @@ public class Goal {
         this.title = title;
         this.dueDate = dueDate;
         this.completed = false;
+        this.listName = "Goals";
     }
 
     public Long getId() { return id; }
@@ -34,4 +36,7 @@ public class Goal {
 
     public LocalDate getDueDate() { return dueDate; }
     public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+
+    public String getListName() { return listName; }
+    public void setListName(String listName) { this.listName = listName; }
 }

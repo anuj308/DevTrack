@@ -32,6 +32,10 @@ public class GoalController {
             return ResponseEntity.status(401).body("{\"error\": \"Authentication required\"}");
         }
         
+        if (g.getListName() == null || g.getListName().isBlank()) {
+            g.setListName("Goals");
+        }
+
         Goal saved = goalRepository.save(g);
         return ResponseEntity.ok(saved);
     }

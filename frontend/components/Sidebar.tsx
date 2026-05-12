@@ -15,6 +15,8 @@ interface SidebarProps {
   onSelectList: (listId: number) => void;
   onCreateList: () => void;
   darkMode: boolean;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 
 export default function Sidebar({
@@ -23,6 +25,8 @@ export default function Sidebar({
   onSelectList,
   onCreateList,
   darkMode,
+  collapsed,
+  onToggleCollapsed,
 }: SidebarProps) {
   const [expandLists, setExpandLists] = useState(true);
 
@@ -34,13 +38,25 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`${bgClass} w-64 h-screen border-r fixed left-0 top-0 overflow-y-auto pt-20 transition-all duration-300`}
+      className={`${bgClass} ${collapsed ? 'w-16' : 'w-64'} h-screen border-r fixed left-0 top-0 overflow-y-auto pt-20 transition-all duration-300`}
     >
-      <nav className="px-4 py-6 space-y-2">
+      <nav className={`py-6 space-y-2 ${collapsed ? 'px-2' : 'px-4'}`}>
+        <button
+          onClick={onToggleCollapsed}
+          className={`flex items-center justify-center w-full rounded-lg transition ${
+            darkMode
+              ? 'hover:bg-slate-800/50 text-slate-300'
+              : 'hover:bg-slate-100 text-slate-700'
+          } ${collapsed ? 'px-2 py-3' : 'px-4 py-2'}`}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <span className="text-lg">{collapsed ? '»' : '«'}</span>
+        </button>
+
         {/* Repository Header */}
-        <div className="px-4 py-2 mb-6">
+        <div className={`${collapsed ? 'px-2' : 'px-4'} py-2 mb-6`}>
           <h2 className={`text-xs font-semibold uppercase ${textClass} tracking-wider`}>
-            📚 DevTrack
+            {collapsed ? '📚' : '📚 DevTrack'}
           </h2>
         </div>
 
@@ -48,18 +64,18 @@ export default function Sidebar({
         <div>
           <button
             onClick={() => setExpandLists(!expandLists)}
-            className={`flex items-center gap-2 px-4 py-2 w-full rounded-lg transition ${
+            className={`flex items-center gap-2 ${collapsed ? 'px-2 py-2 justify-center' : 'px-4 py-2'} w-full rounded-lg transition ${
               darkMode
                 ? 'hover:bg-slate-800/50 text-slate-300'
                 : 'hover:bg-slate-100 text-slate-700'
             }`}
           >
             <span className="text-lg">{expandLists ? '▼' : '▶'}</span>
-            <span className="text-sm font-semibold">Lists</span>
-            <span className={`ml-auto text-xs ${textClass}`}>{lists.length}</span>
+            {!collapsed && <span className="text-sm font-semibold">Lists</span>}
+            {!collapsed && <span className={`ml-auto text-xs ${textClass}`}>{lists.length}</span>}
           </button>
 
-          {expandLists && (
+          {expandLists && !collapsed && (
             <div className="mt-2 space-y-1">
               {lists.map((list) => (
                 <button
@@ -101,6 +117,7 @@ export default function Sidebar({
         </div>
 
         {/* Quick Links */}
+        {!collapsed && (
         <div className="mt-8 pt-6 border-t border-slate-700/50">
           <div className="px-4 py-2 mb-3">
             <h3 className={`text-xs font-semibold uppercase ${textClass} tracking-wider`}>
@@ -119,6 +136,7 @@ export default function Sidebar({
             <span className="text-sm">Dashboard</span>
           </Link>
         </div>
+        )}
       </nav>
     </aside>
   );

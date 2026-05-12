@@ -53,6 +53,9 @@ export const problemsApi = {
     title: string;
     difficulty: string;
     topics: string;
+    link?: string;
+    notes?: string;
+    listId?: number;
   }) => {
     try {
       const headers = await getHeaders();
@@ -166,6 +169,45 @@ export const goalsApi = {
       return true;
     } catch (error) {
       console.error("Error deleting goal:", error);
+      throw error;
+    }
+  },
+};
+
+export const listsApi = {
+  getAll: async () => {
+    try {
+      const response = await fetch(`${API_URL}/lists`, {
+        method: 'GET',
+        mode: 'cors',
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch lists');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching lists:', error);
+      return [];
+    }
+  },
+
+  create: async (list: { name: string }) => {
+    try {
+      const response = await fetch(`${API_URL}/lists`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(list),
+      });
+
+      if (response.status === 409 || response.ok) {
+        return await response.json();
+      }
+
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create list');
+    } catch (error) {
+      console.error('Error creating list:', error);
       throw error;
     }
   },

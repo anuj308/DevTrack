@@ -14,6 +14,10 @@ public class Problem {
     private String title;
     private String difficulty;
     private String topics;
+    private String link;
+    @Column(length = 4000)
+    private String notes;
+    private Long listId;
     private LocalDate solvedAt;
 
     public Problem() {}
@@ -23,6 +27,7 @@ public class Problem {
         this.difficulty = difficulty;
         this.topics = topics;
         this.solvedAt = LocalDate.now();
+        this.listId = 1L;
     }
 
     public Long getId() { return id; }
@@ -36,6 +41,15 @@ public class Problem {
 
     public String getTopics() { return topics; }
     public void setTopics(String topics) { this.topics = topics; }
+
+    public String getLink() { return link; }
+    public void setLink(String link) { this.link = link; }
+
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+
+    public Long getListId() { return listId; }
+    public void setListId(Long listId) { this.listId = listId; }
 
     public LocalDate getSolvedAt() { return solvedAt; }
     public void setSolvedAt(LocalDate solvedAt) { this.solvedAt = solvedAt; }
