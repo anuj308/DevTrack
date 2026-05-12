@@ -12,7 +12,7 @@ interface List {
 interface SidebarProps {
   lists: List[];
   selectedList: number | null;
-  onSelectList: (listId: number) => void;
+  onSelectList: (listId: number | null) => void;
   onCreateList: () => void;
   darkMode: boolean;
   collapsed: boolean;
@@ -62,6 +62,21 @@ export default function Sidebar({
 
         {/* Lists Section */}
         <div>
+          <button
+            onClick={() => onSelectList(null)}
+            className={`flex items-center gap-2 px-4 py-2 w-full rounded-lg transition mb-1 ${
+              selectedList === null
+                ? activeClass
+                : darkMode
+                ? 'hover:bg-slate-800/50 text-slate-300'
+                : 'hover:bg-slate-100 text-slate-700'
+            } ${collapsed ? 'justify-center px-2' : ''}`}
+            title="All problems"
+          >
+            <span className="text-lg">📋</span>
+            {!collapsed && <span className="text-sm font-semibold">All problems</span>}
+          </button>
+
           <button
             onClick={() => setExpandLists(!expandLists)}
             className={`flex items-center gap-2 ${collapsed ? 'px-2 py-2 justify-center' : 'px-4 py-2'} w-full rounded-lg transition ${
@@ -118,24 +133,24 @@ export default function Sidebar({
 
         {/* Quick Links */}
         {!collapsed && (
-        <div className="mt-8 pt-6 border-t border-slate-700/50">
-          <div className="px-4 py-2 mb-3">
-            <h3 className={`text-xs font-semibold uppercase ${textClass} tracking-wider`}>
-              Quick Links
-            </h3>
+          <div className="mt-8 pt-6 border-t border-slate-700/50">
+            <div className="px-4 py-2 mb-3">
+              <h3 className={`text-xs font-semibold uppercase ${textClass} tracking-wider`}>
+                Quick Links
+              </h3>
+            </div>
+            <Link
+              href="/dashboard"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                darkMode
+                  ? 'hover:bg-slate-800/50 text-slate-400'
+                  : 'hover:bg-slate-100 text-slate-600'
+              }`}
+            >
+              <span className="text-lg">📊</span>
+              <span className="text-sm">Dashboard</span>
+            </Link>
           </div>
-          <Link
-            href="/dashboard"
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-              darkMode
-                ? 'hover:bg-slate-800/50 text-slate-400'
-                : 'hover:bg-slate-100 text-slate-600'
-            }`}
-          >
-            <span className="text-lg">📊</span>
-            <span className="text-sm">Dashboard</span>
-          </Link>
-        </div>
         )}
       </nav>
     </aside>

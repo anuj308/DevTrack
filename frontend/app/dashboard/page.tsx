@@ -1,13 +1,12 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { redirect } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { problemsApi, goalsApi } from '@/lib/api';
-import Sidebar from '@/components/Sidebar';
-import ProblemDetail from '@/components/ProblemDetail';
-import GoalDetail from '@/components/GoalDetail';
+import { goalsApi, listsApi, problemsApi } from '@/lib/api';
+import Sidebar from '../../components/Sidebar';
+import ProblemDetail from '../../components/ProblemDetail';
+import GoalDetail from '../../components/GoalDetail';
 
 interface Problem {
   id: number;
@@ -17,6 +16,7 @@ interface Problem {
   link?: string;
   notes?: string;
   listId?: number;
+  listName?: string;
   solvedAt?: string;
 }
 
@@ -25,35 +25,42 @@ interface Goal {
   title: string;
   dueDate: string;
   completed: boolean;
+  listName?: string;
 }
 
-interface List {
+interface ListItem {
   id: number;
   name: string;
   problemCount: number;
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: 'bg-green-500/20 border-green-500/30 text-green-400',
-  Medium: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
-  Hard: 'bg-red-500/20 border-red-500/30 text-red-400',
+const DIFFICULTY_BADGES: Record<string, string> = {
+  Easy: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  Medium: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  Hard: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
 };
+
+function normalizeListName(name: string) {
+  return name.trim().toLowerCase();
+}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [lists, setLists] = useState<List[]>([
-    { id: 1, name: 'Default', problemCount: 0 },
-  ]);
+  const [lists, setLists] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [activeTab, setActiveTab] = useState<'problems' | 'goals'>('problems');
-  const [showProblemForm, setShowProblemForm] = useState(false);
-  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [selectedList, setSelectedList] = useState<number | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showListForm, setShowListForm] = useState(false);
   const [newListName, setNewListName] = useState('');
-  const [selectedList, setSelectedList] = useState<number | null>(1);
+  const [showProblemForm, setShowProblemForm] = useState(false);
+  const [showGoalForm, setShowGoalForm] = useState(false);
+  const [problemListQuery, setProblemListQuery] = useState('');
+  const [problemListDropdownOpen, setProblemListDropdownOpen] = useState(false);
+  const [initializedSelection, setInitializedSelection] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState<Problem | null>(null);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
 
@@ -64,26 +71,33 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [problemsData, goalsData] = await Promise.all([
+        const [listsData, problemsData, goalsData] = await Promise.all([
+          listsApi.getAll(),
           problemsApi.getAll(),
           goalsApi.getAll(),
         ]);
-        setProblems(problemsData || []);
-        setGoals(goalsData || []);
-        // Count problems in each list
-        const listCounts: Record<number, number> = {};
-        (problemsData || []).forEach((p: Problem) => {
-          const listId = p.listId || 1;
-          listCounts[listId] = (listCounts[listId] || 0) + 1;
+
+        const normalizedLists = Array.isArray(listsData) ? listsData : [];
+        const resolvedProblems = Array.isArray(problemsData) ? problemsData : [];
+        const resolvedGoals = Array.isArray(goalsData) ? goalsData : [];
+
+        const counts: Record<number, number> = {};
+        resolvedProblems.forEach((problem: Problem) => {
+          const listId = problem.listId || normalizedLists[0]?.id || 1;
+          counts[listId] = (counts[listId] || 0) + 1;
         });
-        setLists((prevLists) =>
-          prevLists.map((list) => ({
-            ...list,
-            problemCount: listCounts[list.id] || 0,
+
+        setLists(
+          normalizedLists.map((list: any) => ({
+            id: list.id,
+            name: list.name,
+            problemCount: counts[list.id] || 0,
           }))
         );
+        setProblems(resolvedProblems);
+        setGoals(resolvedGoals);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching dashboard data:', error);
       } finally {
         setLoading(false);
       }
@@ -94,64 +108,188 @@ export default function Dashboard() {
     }
   }, [status]);
 
-  const filteredProblems = selectedList
-    ? problems.filter((p) => (p.listId || 1) === selectedList)
-    : problems;
+  useEffect(() => {
+    if (!initializedSelection && lists.length > 0) {
+      setSelectedList(lists[0].id);
+      setProblemListQuery(lists[0].name);
+      setInitializedSelection(true);
+    }
+  }, [initializedSelection, lists]);
 
-  const handleAddProblem = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  const listLookup = useMemo(() => {
+    return new Map(lists.map((list) => [list.id, list.name]));
+  }, [lists]);
+
+  const enrichedProblems = useMemo(
+    () =>
+      problems.map((problem) => ({
+        ...problem,
+        listName: problem.listId ? listLookup.get(problem.listId) || 'Default' : 'Default',
+      })),
+    [listLookup, problems]
+  );
+
+  const visibleProblems = useMemo(() => {
+    if (!selectedList) {
+      return enrichedProblems;
+    }
+
+    return enrichedProblems.filter((problem) => (problem.listId || lists[0]?.id) === selectedList);
+  }, [enrichedProblems, lists, selectedList]);
+
+  const filteredListSuggestions = useMemo(() => {
+    const query = problemListQuery.trim().toLowerCase();
+    if (!query) {
+      return lists;
+    }
+
+    return lists.filter((list) => list.name.toLowerCase().includes(query));
+  }, [lists, problemListQuery]);
+
+  const exactListMatch = useMemo(() => {
+    const query = normalizeListName(problemListQuery);
+    if (!query) {
+      return null;
+    }
+
+    return lists.find((list) => normalizeListName(list.name) === query) || null;
+  }, [lists, problemListQuery]);
+
+  const currentListLabel =
+    selectedList && listLookup.get(selectedList) ? listLookup.get(selectedList) : 'All problems';
+
+  const bgClass = darkMode ? 'bg-slate-950' : 'bg-slate-50';
+  const textClass = darkMode ? 'text-white' : 'text-slate-900';
+  const panelClass = darkMode
+    ? 'bg-slate-900/70 border-slate-800 shadow-black/20'
+    : 'bg-white border-slate-200 shadow-slate-200/40';
+  const inputClass = darkMode
+    ? 'bg-slate-950/60 border-slate-700 text-white placeholder-slate-500'
+    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-500';
+
+  const sidebarWidthClass = sidebarCollapsed ? 'ml-16' : 'ml-64';
+
+  const refreshCounts = (updatedLists: ListItem[], updatedProblems: Problem[]) => {
+    const counts: Record<number, number> = {};
+    updatedProblems.forEach((problem) => {
+      const listId = problem.listId || updatedLists[0]?.id || 1;
+      counts[listId] = (counts[listId] || 0) + 1;
+    });
+
+    return updatedLists.map((list) => ({
+      ...list,
+      problemCount: counts[list.id] || 0,
+    }));
+  };
+
+  const createListFromName = async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const existing = lists.find((list) => normalizeListName(list.name) === normalizeListName(trimmed));
+    if (existing) {
+      return existing;
+    }
+
+    const created = await listsApi.create({ name: trimmed });
+    const normalizedCreated = {
+      id: created.id,
+      name: created.name,
+      problemCount: 0,
+    } as ListItem;
+
+    setLists((current) => refreshCounts([...current, normalizedCreated], problems));
+    return normalizedCreated;
+  };
+
+  const handleManualListCreate = async () => {
+    const created = await createListFromName(newListName);
+    if (!created) {
+      return;
+    }
+
+    setNewListName('');
+    setShowListForm(false);
+    setSelectedList(created.id);
+    setProblemListQuery(created.name);
+  };
+
+  const handleAddProblem = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const title = String(formData.get('title') || '').trim();
+    const difficulty = String(formData.get('difficulty') || 'Easy');
+    const topics = String(formData.get('topics') || '').trim();
+    const link = String(formData.get('link') || '').trim();
+    const notes = String(formData.get('notes') || '').trim();
+    const query = problemListQuery.trim();
+
+    let targetList = exactListMatch || lists.find((list) => list.id === selectedList) || null;
+
+    if (query && !targetList) {
+      const shouldCreate = window.confirm(`List "${query}" does not exist. Create it now?`);
+      if (!shouldCreate) {
+        return;
+      }
+      targetList = await createListFromName(query);
+    }
+
+    if (!targetList) {
+      const fallbackList = lists[0];
+      if (!fallbackList) {
+        alert('Create a list first before adding a problem.');
+        return;
+      }
+      targetList = fallbackList;
+    }
 
     try {
-      const newProblem = await problemsApi.create({
-        title: formData.get('title') as string,
-        difficulty: formData.get('difficulty') as string,
-        topics: formData.get('topics') as string,
+      const createdProblem = await problemsApi.create({
+        title,
+        difficulty,
+        topics,
+        link: link || undefined,
+        notes: notes || undefined,
+        listId: targetList.id,
       });
 
-      setProblems([...problems, newProblem]);
+      const nextProblems = [...problems, createdProblem];
+      setProblems(nextProblems);
+      setLists((current) => refreshCounts(current, nextProblems));
+      setSelectedList(targetList.id);
+      setProblemListQuery(targetList.name);
       setShowProblemForm(false);
-      (e.target as HTMLFormElement).reset();
+      event.currentTarget.reset();
     } catch (error) {
       console.error('Error adding problem:', error);
     }
   };
 
-  const handleAddGoal = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+  const handleAddGoal = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
 
     try {
-      const newGoal = await goalsApi.create({
-        title: formData.get('title') as string,
-        dueDate: formData.get('dueDate') as string,
+      const createdGoal = await goalsApi.create({
+        title: String(formData.get('title') || '').trim(),
+        dueDate: String(formData.get('dueDate') || ''),
       });
-
-      setGoals([...goals, newGoal]);
+      setGoals((current) => [...current, createdGoal]);
       setShowGoalForm(false);
-      (e.target as HTMLFormElement).reset();
+      event.currentTarget.reset();
     } catch (error) {
       console.error('Error adding goal:', error);
-    }
-  };
-
-  const handleAddList = () => {
-    if (newListName.trim()) {
-      const newList: List = {
-        id: Math.max(...lists.map((l) => l.id), 0) + 1,
-        name: newListName,
-        problemCount: 0,
-      };
-      setLists([...lists, newList]);
-      setNewListName('');
-      setShowListForm(false);
     }
   };
 
   const handleDeleteProblem = async (id: number) => {
     try {
       await problemsApi.delete(id);
-      setProblems(problems.filter((p) => p.id !== id));
+      const nextProblems = problems.filter((problem) => problem.id !== id);
+      setProblems(nextProblems);
+      setLists((current) => refreshCounts(current, nextProblems));
     } catch (error) {
       console.error('Error deleting problem:', error);
     }
@@ -160,466 +298,499 @@ export default function Dashboard() {
   const handleDeleteGoal = async (id: number) => {
     try {
       await goalsApi.delete(id);
-      setGoals(goals.filter((g) => g.id !== id));
+      setGoals((current) => current.filter((goal) => goal.id !== id));
     } catch (error) {
       console.error('Error deleting goal:', error);
     }
   };
 
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
-  const bgClass = darkMode ? 'bg-slate-950' : 'bg-slate-50';
-  const textClass = darkMode ? 'text-white' : 'text-slate-900';
-  const cardClass = darkMode
-    ? 'bg-slate-900/60 border-slate-700 hover:border-slate-600'
-    : 'bg-white border-slate-200 hover:border-slate-300';
-  const inputClass = darkMode
-    ? 'bg-slate-800/50 border-slate-700 text-white placeholder-slate-400'
-    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-500';
-  const tabActiveClass = darkMode
-    ? 'border-b-2 border-cyan-500 text-cyan-400'
-    : 'border-b-2 border-cyan-600 text-cyan-600';
-
   if (status === 'loading' || loading) {
     return (
       <div className={`min-h-screen ${bgClass} ${textClass} flex items-center justify-center`}>
-        <div className="text-xl">Loading...</div>
+        <div className="text-lg font-medium">Loading dashboard...</div>
       </div>
     );
   }
 
   return (
     <div className={`min-h-screen ${bgClass} transition-colors duration-300`}>
-      {/* Header */}
       <header
-        className={`sticky top-0 z-40 border-b ${
-          darkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white border-slate-200'
-        } backdrop-blur`}
+        className={`sticky top-0 z-40 border-b backdrop-blur ${
+          darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/85 border-slate-200'
+        }`}
       >
-        <div className="max-w-full px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center ml-64">
-          <div className="flex-1">
-            <h1 className={`text-2xl font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
+        <div className={`flex items-center justify-between gap-4 px-4 py-4 ${sidebarWidthClass}`}>
+          <div>
+            <p className={`text-xs uppercase tracking-[0.3em] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               DevTrack
-            </h1>
+            </p>
+            <h1 className={`text-2xl font-semibold ${textClass}`}>Problem dashboard</h1>
+            <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              {currentListLabel}
+            </p>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-lg transition text-xl ${
-                darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-200 hover:bg-slate-300'
+              onClick={() => setSidebarCollapsed((current) => !current)}
+              className={`rounded-full border px-3 py-2 text-sm transition ${
+                darkMode
+                  ? 'border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
               }`}
-              title={darkMode ? 'Light Mode' : 'Dark Mode'}
             >
-              {darkMode ? '☀️' : '🌙'}
+              {sidebarCollapsed ? 'Open sidebar' : 'Collapse sidebar'}
             </button>
-            <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>
-              {session?.user?.name || session?.user?.email}
-            </span>
+            <button
+              onClick={() => setDarkMode((current) => !current)}
+              className={`rounded-full px-3 py-2 text-sm transition ${
+                darkMode
+                  ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+              }`}
+            >
+              {darkMode ? '☀️ Light' : '🌙 Dark'}
+            </button>
             <button
               onClick={() => signOut()}
-              className="px-4 py-2 bg-red-600/80 hover:bg-red-700 text-white rounded-lg transition"
+              className="rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-rose-700"
             >
-              Sign Out
+              Sign out
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Layout */}
-      <div className="flex">
-        {/* Sidebar */}
-        <Sidebar
-          lists={lists}
-          selectedList={selectedList}
-          onSelectList={setSelectedList}
-          onCreateList={() => setShowListForm(true)}
-          darkMode={darkMode}
-        />
+      <Sidebar
+        lists={lists}
+        selectedList={selectedList}
+        onSelectList={(listId) => {
+          setSelectedList(listId);
+          setProblemListQuery(listId ? listLookup.get(listId) || '' : '');
+        }}
+        onCreateList={() => setShowListForm(true)}
+        darkMode={darkMode}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+      />
 
-        {/* Main Content */}
-        <main className="flex-1 ml-64 px-4 sm:px-6 lg:px-8 py-12">
-          {/* Create List Form */}
-          {showListForm && (
-            <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
-              <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Create New List</h3>
-              <div className="flex gap-4">
+      <main className={`px-4 py-8 ${sidebarWidthClass}`}>
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setActiveTab('problems')}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              activeTab === 'problems'
+                ? 'bg-cyan-500 text-slate-950'
+                : darkMode
+                ? 'bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                : 'bg-white text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Problems
+          </button>
+          <button
+            onClick={() => setActiveTab('goals')}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              activeTab === 'goals'
+                ? 'bg-cyan-500 text-slate-950'
+                : darkMode
+                ? 'bg-slate-900/80 text-slate-300 hover:bg-slate-800'
+                : 'bg-white text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Goals
+          </button>
+          <span className={`ml-auto text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            {visibleProblems.length} problems in view
+          </span>
+        </div>
+
+        {showListForm && (
+          <div className={`${panelClass} mb-6 rounded-3xl border p-5`}>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <div className="flex-1">
+                <label className={`mb-2 block text-sm font-medium ${textClass}`}>Create list</label>
                 <input
-                  type="text"
-                  placeholder="List name (e.g., 'Algorithms', 'Data Structures')"
                   value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  className={`flex-1 px-4 py-2 rounded-lg border ${inputClass}`}
+                  onChange={(event) => setNewListName(event.target.value)}
+                  placeholder="Enter list name"
+                  className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
                 />
+              </div>
+              <div className="flex gap-3">
                 <button
-                  onClick={handleAddList}
-                  className={`px-6 py-2 rounded-lg transition ${
-                    darkMode
-                      ? 'bg-green-600/80 hover:bg-green-700 text-white'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
+                  onClick={handleManualListCreate}
+                  className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
                 >
-                  Create
+                  Create list
                 </button>
                 <button
                   onClick={() => setShowListForm(false)}
-                  className={`px-6 py-2 rounded-lg border transition ${
+                  className={`rounded-2xl border px-5 py-3 text-sm font-medium transition ${
                     darkMode
-                      ? 'border-slate-700 hover:bg-slate-800/50'
-                      : 'border-slate-300 hover:bg-slate-100'
+                      ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                      : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   Cancel
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
-              <div
-                className={`${
-                  darkMode ? 'text-cyan-400' : 'text-cyan-600'
-                } text-sm font-semibold mb-2`}
-              >
-                PROBLEMS
-              </div>
-              <div className={`text-4xl font-bold ${textClass} mb-4`}>
-                {activeTab === 'problems' ? filteredProblems.length : problems.length}
-              </div>
-              <button
-                onClick={() => setShowProblemForm(true)}
-                className={`px-4 py-2 rounded-lg transition ${
-                  darkMode
-                    ? 'bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400'
-                    : 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600'
-                }`}
-              >
-                ➕ Add Problem
-              </button>
-            </div>
-
-            <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
-              <div
-                className={`${
-                  darkMode ? 'text-purple-400' : 'text-purple-600'
-                } text-sm font-semibold mb-2`}
-              >
-                GOALS
-              </div>
-              <div className={`text-4xl font-bold ${textClass} mb-4`}>{goals.length}</div>
-              <button
-                onClick={() => setShowGoalForm(true)}
-                className={`px-4 py-2 rounded-lg transition ${
-                  darkMode
-                    ? 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-400'
-                    : 'bg-purple-600/10 hover:bg-purple-600/20 text-purple-600'
-                }`}
-              >
-                ➕ Add Goal
-              </button>
-            </div>
-
-            <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
-              <div
-                className={`${
-                  darkMode ? 'text-green-400' : 'text-green-600'
-                } text-sm font-semibold mb-2`}
-              >
-                LISTS
-              </div>
-              <div className={`text-4xl font-bold ${textClass} mb-4`}>{lists.length}</div>
-              <button
-                onClick={() => setShowListForm(true)}
-                className={`px-4 py-2 rounded-lg transition ${
-                  darkMode
-                    ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400'
-                    : 'bg-green-600/10 hover:bg-green-600/20 text-green-600'
-                }`}
-              >
-                ➕ New List
-              </button>
-            </div>
           </div>
+        )}
 
-          {/* Tabs */}
-          <div className={`flex gap-6 mb-8 border-b ${
-            darkMode ? 'border-slate-700' : 'border-slate-200'
-          }`}>
-            <button
-              onClick={() => setActiveTab('problems')}
-              className={`pb-4 font-semibold transition ${
-                activeTab === 'problems' ? tabActiveClass : darkMode ? 'text-slate-400' : 'text-slate-600'
-              }`}
-            >
-              📋 Problems
-            </button>
-            <button
-              onClick={() => setActiveTab('goals')}
-              className={`pb-4 font-semibold transition ${
-                activeTab === 'goals' ? tabActiveClass : darkMode ? 'text-slate-400' : 'text-slate-600'
-              }`}
-            >
-              🎯 Goals
-            </button>
-          </div>
-
-          {/* Add Problem Form */}
-          {showProblemForm && activeTab === 'problems' && (
-            <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
-              <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Add New Problem</h3>
-              <form onSubmit={handleAddProblem} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    name="title"
-                    placeholder="Problem title"
-                    required
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  />
-                  <select
-                    name="difficulty"
-                    required
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  >
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
-                  </select>
-                  <input
-                    type="text"
-                    name="topics"
-                    placeholder="Topics (e.g., 'Array, Sorting')"
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  />
-                  <input
-                    type="url"
-                    name="link"
-                    placeholder="Problem link (optional)"
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  />
-                </div>
-                <textarea
-                  name="notes"
-                  placeholder="Notes (optional)"
-                  rows={3}
-                  className={`w-full px-4 py-2 rounded-lg border ${inputClass}`}
-                />
-                <div className="flex gap-4">
+        {activeTab === 'problems' && (
+          <section className="space-y-6">
+            {showProblemForm && (
+              <div className={`${panelClass} rounded-3xl border p-6`}>
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className={`text-xl font-semibold ${textClass}`}>Add problem</h2>
+                    <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Search a list, select one, or create it inline.
+                    </p>
+                  </div>
                   <button
-                    type="submit"
-                    className={`px-6 py-2 rounded-lg transition ${
-                      darkMode
-                        ? 'bg-cyan-600/80 hover:bg-cyan-700 text-white'
-                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                    }`}
-                  >
-                    Save Problem
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setShowProblemForm(false)}
-                    className={`px-6 py-2 rounded-lg border transition ${
+                    className={`rounded-full border px-3 py-2 text-sm transition ${
                       darkMode
-                        ? 'border-slate-700 hover:bg-slate-800/50'
-                        : 'border-slate-300 hover:bg-slate-100'
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    Cancel
+                    Close
                   </button>
                 </div>
-              </form>
-            </div>
-          )}
 
-          {/* Add Goal Form */}
-          {showGoalForm && activeTab === 'goals' && (
-            <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
-              <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Add New Goal</h3>
-              <form onSubmit={handleAddGoal} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    name="title"
-                    placeholder="Goal title"
-                    required
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  />
-                  <input
-                    type="date"
-                    name="dueDate"
-                    defaultValue={getTodayDate()}
-                    required
-                    className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                  />
-                </div>
-                <div className="flex gap-4">
-                  <button
-                    type="submit"
-                    className={`px-6 py-2 rounded-lg transition ${
-                      darkMode
-                        ? 'bg-purple-600/80 hover:bg-purple-700 text-white'
-                        : 'bg-purple-600 hover:bg-purple-700 text-white'
-                    }`}
-                  >
-                    Save Goal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowGoalForm(false)}
-                    className={`px-6 py-2 rounded-lg border transition ${
-                      darkMode
-                        ? 'border-slate-700 hover:bg-slate-800/50'
-                        : 'border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+                <form className="space-y-5" onSubmit={handleAddProblem}>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className={`mb-2 block text-sm font-medium ${textClass}`}>Title</label>
+                      <input
+                        name="title"
+                        required
+                        placeholder="Two Sum"
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`mb-2 block text-sm font-medium ${textClass}`}>Difficulty</label>
+                      <select
+                        name="difficulty"
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                      >
+                        <option>Easy</option>
+                        <option>Medium</option>
+                        <option>Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`mb-2 block text-sm font-medium ${textClass}`}>Topics</label>
+                      <input
+                        name="topics"
+                        placeholder="Array, Hash Map"
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`mb-2 block text-sm font-medium ${textClass}`}>Problem URL</label>
+                      <input
+                        name="link"
+                        type="url"
+                        placeholder="https://leetcode.com/problems/..."
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                      />
+                    </div>
+                  </div>
 
-          {/* Problems Content */}
-          {activeTab === 'problems' && (
-            <section>
-              {filteredProblems.length === 0 ? (
-                <div
-                  className={`${cardClass} border rounded-lg p-12 text-center ${
-                    darkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}
-                >
-                  <p className="text-lg mb-4">
-                    {selectedList && lists.find(l => l.id === selectedList)?.name
-                      ? `No problems in "${lists.find(l => l.id === selectedList)?.name}"`
-                      : 'No problems yet'}
-                  </p>
+                  <div>
+                    <label className={`mb-2 block text-sm font-medium ${textClass}`}>Notes</label>
+                    <textarea
+                      name="notes"
+                      rows={4}
+                      placeholder="Write brute force idea, edge cases, or templates..."
+                      className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <label className={`mb-2 block text-sm font-medium ${textClass}`}>List</label>
+                    <input
+                      value={problemListQuery}
+                      onChange={(event) => {
+                        setProblemListQuery(event.target.value);
+                        setSelectedList(null);
+                        setProblemListDropdownOpen(true);
+                      }}
+                      onFocus={() => setProblemListDropdownOpen(true)}
+                      placeholder="Search or create list"
+                      className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                    />
+                    {problemListDropdownOpen && (
+                      <div className={`absolute z-20 mt-2 w-full rounded-2xl border ${panelClass}`}>
+                        <div className="max-h-60 overflow-y-auto p-2">
+                          {filteredListSuggestions.length > 0 ? (
+                            filteredListSuggestions.map((list) => (
+                              <button
+                                key={list.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedList(list.id);
+                                  setProblemListQuery(list.name);
+                                  setProblemListDropdownOpen(false);
+                                }}
+                                className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition ${
+                                  darkMode ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-800'
+                                }`}
+                              >
+                                <span>{list.name}</span>
+                                <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  {list.problemCount} problems
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className={`px-4 py-3 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              No list found.
+                            </div>
+                          )}
+
+                          {problemListQuery.trim() && !exactListMatch && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const created = await createListFromName(problemListQuery);
+                                if (created) {
+                                  setSelectedList(created.id);
+                                  setProblemListDropdownOpen(false);
+                                }
+                              }}
+                              className="mt-2 w-full rounded-xl bg-cyan-500 px-4 py-3 text-left text-sm font-medium text-slate-950 transition hover:bg-cyan-400"
+                            >
+                              + Create "{problemListQuery.trim()}"
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <p className={`mt-2 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      If the list does not exist, you will be asked to create it before saving.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                    >
+                      Save problem
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProblemListDropdownOpen(false)}
+                      className={`rounded-2xl border px-5 py-3 text-sm font-medium transition ${
+                        darkMode
+                          ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                          : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      Close list picker
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              {visibleProblems.length === 0 ? (
+                <div className={`${panelClass} rounded-3xl border p-10 text-center`}>
+                  <p className={`text-lg ${textClass}`}>No problems in this list yet.</p>
                   <button
                     onClick={() => setShowProblemForm(true)}
-                    className={`px-6 py-2 rounded-lg transition ${
-                      darkMode
-                        ? 'bg-cyan-600/80 hover:bg-cyan-700 text-white'
-                        : 'bg-cyan-600 hover:bg-cyan-700 text-white'
-                    }`}
+                    className="mt-4 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
                   >
-                    Create one now
+                    Add your first problem
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredProblems.map((problem) => (
-                    <div
-                      key={problem.id}
-                      onClick={() => setSelectedProblem(problem)}
-                      className={`${cardClass} border rounded-lg p-6 backdrop-blur transition cursor-pointer transform hover:scale-105`}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className={`text-lg font-semibold ${textClass} flex-1 line-clamp-2`}>
-                          {problem.title}
-                        </h3>
+                visibleProblems.map((problem) => (
+                  <article
+                    key={problem.id}
+                    className={`${panelClass} rounded-3xl border px-5 py-4 transition hover:-translate-y-0.5 hover:border-cyan-500/40`}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            onClick={() => setSelectedProblem(problem)}
+                            className={`text-left text-lg font-semibold ${textClass} hover:text-cyan-400`}
+                          >
+                            {problem.title}
+                          </button>
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                              DIFFICULTY_BADGES[problem.difficulty] || DIFFICULTY_BADGES.Easy
+                            }`}
+                          >
+                            {problem.difficulty}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-xs ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
+                            {problem.listName || 'Default'}
+                          </span>
+                        </div>
+                        <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {problem.topics || 'No topics added'}
+                        </p>
+                        {problem.notes && (
+                          <p className={`mt-2 line-clamp-2 text-sm ${darkMode ? 'text-slate-500' : 'text-slate-600'}`}>
+                            {problem.notes}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex gap-2 mb-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-sm font-medium border ${
-                            DIFFICULTY_COLORS[problem.difficulty] ||
-                            DIFFICULTY_COLORS['Easy']
+
+                      <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+                        {problem.link ? (
+                          <a
+                            href={problem.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                          >
+                            Solve
+                          </a>
+                        ) : null}
+                        <button
+                          onClick={() => setSelectedProblem(problem)}
+                          className={`rounded-2xl border px-4 py-2 text-sm font-medium transition ${
+                            darkMode
+                              ? 'border-slate-700 text-slate-200 hover:bg-slate-800'
+                              : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                           }`}
                         >
-                          {problem.difficulty}
-                        </span>
+                          Open
+                        </button>
                       </div>
-                      {problem.topics && (
-                        <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-2 line-clamp-1`}>
-                          {problem.topics}
-                        </p>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedProblem(problem);
-                        }}
-                        className={`mt-4 w-full px-4 py-2 rounded-lg transition ${
-                          darkMode
-                            ? 'bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400'
-                            : 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600'
-                        }`}
-                      >
-                        👁️ View Details
-                      </button>
                     </div>
-                  ))}
-                </div>
+                  </article>
+                ))
               )}
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
-          {/* Goals Content */}
-          {activeTab === 'goals' && (
-            <section>
-              {goals.length === 0 ? (
-                <div
-                  className={`${cardClass} border rounded-lg p-12 text-center ${
-                    darkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}
-                >
-                  <p className="text-lg mb-4">No goals yet</p>
+        {activeTab === 'goals' && (
+          <section className="space-y-6">
+            {showGoalForm && (
+              <div className={`${panelClass} rounded-3xl border p-6`}>
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className={`text-xl font-semibold ${textClass}`}>Add goal</h2>
+                    <p className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Track goals as a simple list.
+                    </p>
+                  </div>
                   <button
-                    onClick={() => setShowGoalForm(true)}
-                    className={`px-6 py-2 rounded-lg transition ${
+                    onClick={() => setShowGoalForm(false)}
+                    className={`rounded-full border px-3 py-2 text-sm transition ${
                       darkMode
-                        ? 'bg-purple-600/80 hover:bg-purple-700 text-white'
-                        : 'bg-purple-600 hover:bg-purple-700 text-white'
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    Create one now
+                    Close
+                  </button>
+                </div>
+
+                <form className="grid gap-4 md:grid-cols-2" onSubmit={handleAddGoal}>
+                  <div className="md:col-span-2">
+                    <label className={`mb-2 block text-sm font-medium ${textClass}`}>Title</label>
+                    <input
+                      name="title"
+                      required
+                      placeholder="Finish dynamic programming revision"
+                      className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`mb-2 block text-sm font-medium ${textClass}`}>Due date</label>
+                    <input
+                      name="dueDate"
+                      type="date"
+                      required
+                      className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+                    />
+                  </div>
+                  <div className="flex items-end gap-3 md:justify-end">
+                    <button
+                      type="submit"
+                      className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                    >
+                      Save goal
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {goals.length === 0 ? (
+                <div className={`${panelClass} rounded-3xl border p-10 text-center md:col-span-2`}>
+                  <p className={`text-lg ${textClass}`}>No goals yet.</p>
+                  <button
+                    onClick={() => setShowGoalForm(true)}
+                    className="mt-4 rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                  >
+                    Add your first goal
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {goals.map((goal) => (
-                    <div
-                      key={goal.id}
-                      onClick={() => setSelectedGoal(goal)}
-                      className={`${cardClass} border rounded-lg p-6 backdrop-blur transition cursor-pointer transform hover:scale-105`}
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className={`text-lg font-semibold ${textClass} flex-1 line-clamp-2`}>
+                goals.map((goal) => (
+                  <article
+                    key={goal.id}
+                    className={`${panelClass} rounded-3xl border px-5 py-4 transition hover:-translate-y-0.5 hover:border-cyan-500/40`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <button
+                          onClick={() => setSelectedGoal(goal)}
+                          className={`text-left text-lg font-semibold ${textClass} hover:text-cyan-400`}
+                        >
                           {goal.title}
-                        </h3>
+                        </button>
+                        <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Due {new Date(goal.dueDate).toLocaleDateString()}
+                        </p>
                       </div>
-                      <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-4`}>
-                        Due: {new Date(goal.dueDate).toLocaleDateString()}
-                      </p>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedGoal(goal);
-                        }}
-                        className={`w-full px-4 py-2 rounded-lg transition ${
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
                           goal.completed
-                            ? darkMode
-                              ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400'
-                              : 'bg-green-600/10 hover:bg-green-600/20 text-green-600'
-                            : darkMode
-                            ? 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-400'
-                            : 'bg-purple-600/10 hover:bg-purple-600/20 text-purple-600'
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : 'bg-sky-500/15 text-sky-300'
                         }`}
                       >
-                        {goal.completed ? '✓ Completed' : '⏳ In Progress'} • View Details
+                        {goal.completed ? 'Completed' : 'Active'}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={() => setSelectedGoal(goal)}
+                        className={`rounded-2xl border px-4 py-2 text-sm font-medium transition ${
+                          darkMode
+                            ? 'border-slate-700 text-slate-200 hover:bg-slate-800'
+                            : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        Open
                       </button>
                     </div>
-                  ))}
-                </div>
+                  </article>
+                ))
               )}
-            </section>
-          )}
-        </main>
-      </div>
+            </div>
+          </section>
+        )}
+      </main>
 
-      {/* Problem Detail Modal */}
       {selectedProblem && (
         <ProblemDetail
           problem={selectedProblem}
@@ -629,7 +800,6 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Goal Detail Modal */}
       {selectedGoal && (
         <GoalDetail
           goal={selectedGoal}

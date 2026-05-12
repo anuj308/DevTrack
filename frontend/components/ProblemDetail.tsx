@@ -8,6 +8,7 @@ interface Problem {
   link?: string;
   notes?: string;
   listId?: number;
+  listName?: string;
   solvedAt?: string;
 }
 
@@ -26,7 +27,7 @@ export default function ProblemDetail({
   onDelete,
   darkMode,
 }: ProblemDetailProps) {
-  const DIFFICULTY_COLORS: Record<string, string> = {
+  const difficultyClasses: Record<string, string> = {
     Easy: 'bg-green-500/20 border-green-500 text-green-400',
     Medium: 'bg-yellow-500/20 border-yellow-500 text-yellow-400',
     Hard: 'bg-red-500/20 border-red-500 text-red-400',
@@ -38,20 +39,19 @@ export default function ProblemDetail({
   const secondaryText = darkMode ? 'text-slate-400' : 'text-slate-600';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-in fade-in sm:items-center">
       <div
-        className={`${bgClass} w-full sm:w-2/3 lg:w-1/2 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border ${borderClass} shadow-2xl animate-in slide-in-from-bottom-5 sm:slide-in-from-center-0`}
+        className={`${bgClass} w-full max-h-[90vh] overflow-y-auto rounded-t-2xl border ${borderClass} shadow-2xl animate-in slide-in-from-bottom-5 sm:w-2/3 sm:rounded-2xl lg:w-1/2`}
       >
-        {/* Header */}
-        <div className={`sticky top-0 ${bgClass} border-b ${borderClass} px-6 py-4 flex justify-between items-start`}>
-          <div className="flex-1">
-            <h2 className={`text-2xl font-bold ${textClass} break-words`}>
+        <div className={`sticky top-0 ${bgClass} border-b ${borderClass} px-6 py-4 flex items-start justify-between gap-4`}>
+          <div className="min-w-0 flex-1">
+            <h2 className={`text-2xl font-bold ${textClass} wrap-break-word`}>
               {problem.title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className={`ml-4 p-2 rounded-lg transition flex-shrink-0 ${
+            className={`shrink-0 rounded-lg p-2 transition ${
               darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
             }`}
           >
@@ -59,34 +59,32 @@ export default function ProblemDetail({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-6 space-y-6">
-          {/* Difficulty & Topics */}
+        <div className="space-y-6 px-6 py-6">
           <div className="space-y-3">
-            <div>
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-sm font-semibold border ${
-                  DIFFICULTY_COLORS[problem.difficulty] ||
-                  DIFFICULTY_COLORS['Easy']
-                }`}
-              >
-                {problem.difficulty}
-              </span>
-            </div>
+            <span
+              className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${
+                difficultyClasses[problem.difficulty] || difficultyClasses.Easy
+              }`}
+            >
+              {problem.difficulty}
+            </span>
+
+            {problem.listName && (
+              <div className={`rounded-xl border p-4 ${borderClass} ${darkMode ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>List</p>
+                <p className={textClass}>{problem.listName}</p>
+              </div>
+            )}
 
             {problem.topics && (
               <div>
-                <p className={`text-sm font-semibold ${secondaryText} mb-2`}>
-                  Topics
-                </p>
+                <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>Topics</p>
                 <div className="flex flex-wrap gap-2">
-                  {problem.topics.split(',').map((topic, idx) => (
+                  {problem.topics.split(',').map((topic, index) => (
                     <span
-                      key={idx}
-                      className={`px-3 py-1 rounded-full text-sm ${
-                        darkMode
-                          ? 'bg-slate-800 text-slate-300'
-                          : 'bg-slate-100 text-slate-700'
+                      key={index}
+                      className={`rounded-full px-3 py-1 text-sm ${
+                        darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {topic.trim()}
@@ -97,64 +95,49 @@ export default function ProblemDetail({
             )}
           </div>
 
-          {/* Problem Link */}
           {problem.link && (
-            <div className={`p-4 rounded-lg border ${borderClass} ${
-              darkMode ? 'bg-slate-800/30' : 'bg-slate-50'
-            }`}>
-              <p className={`text-sm font-semibold ${secondaryText} mb-2`}>
-                Problem Link
-              </p>
+            <div className={`rounded-xl border p-4 ${borderClass} ${darkMode ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+              <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>Open / Solve Problem</p>
               <a
                 href={problem.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-cyan-500 hover:text-cyan-400 break-all font-mono text-sm"
+                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600/15 px-4 py-3 text-sm font-medium text-cyan-500 transition hover:bg-cyan-600/25 hover:text-cyan-400"
               >
-                {problem.link}
+                ↗ Open problem URL
               </a>
+              <p className={`mt-2 break-all text-xs ${secondaryText}`}>{problem.link}</p>
             </div>
           )}
 
-          {/* Notes */}
           {problem.notes && (
             <div>
-              <p className={`text-sm font-semibold ${secondaryText} mb-2`}>
-                Notes
-              </p>
-              <div
-                className={`p-4 rounded-lg border ${borderClass} ${
-                  darkMode ? 'bg-slate-800/30' : 'bg-slate-50'
-                } whitespace-pre-wrap break-words ${textClass}`}
-              >
+              <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>Notes</p>
+              <div className={`rounded-xl border p-4 whitespace-pre-wrap wrap-break-word ${borderClass} ${darkMode ? 'bg-slate-800/30' : 'bg-slate-50'} ${textClass}`}>
                 {problem.notes}
               </div>
             </div>
           )}
 
-          {/* Metadata */}
-          <div className={`pt-4 border-t ${borderClass} space-y-2`}>
+          <div className={`space-y-2 border-t pt-4 ${borderClass}`}>
             {problem.solvedAt && (
-              <div className="flex justify-between">
+              <div className="flex justify-between gap-4">
                 <span className={secondaryText}>Solved at:</span>
-                <span className={textClass}>
-                  {new Date(problem.solvedAt).toLocaleDateString()}
-                </span>
+                <span className={textClass}>{new Date(problem.solvedAt).toLocaleDateString()}</span>
               </div>
             )}
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-4">
               <span className={secondaryText}>Problem ID:</span>
               <span className={textClass}>{problem.id}</span>
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className={`border-t ${borderClass} px-6 py-4 flex gap-3 bg-slate-800/20`}>
+        <div className={`flex gap-3 border-t px-6 py-4 ${borderClass} bg-slate-800/20`}>
           {onEdit && (
             <button
               onClick={() => onEdit(problem)}
-              className="flex-1 px-4 py-2 bg-cyan-600/80 hover:bg-cyan-700 text-white rounded-lg transition font-medium"
+              className="flex-1 rounded-lg bg-cyan-600/80 px-4 py-2 font-medium text-white transition hover:bg-cyan-700"
             >
               ✏️ Edit
             </button>
@@ -165,17 +148,17 @@ export default function ProblemDetail({
                 onDelete(problem.id);
                 onClose();
               }}
-              className="flex-1 px-4 py-2 bg-red-600/80 hover:bg-red-700 text-white rounded-lg transition font-medium"
+              className="flex-1 rounded-lg bg-red-600/80 px-4 py-2 font-medium text-white transition hover:bg-red-700"
             >
               🗑️ Delete
             </button>
           )}
           <button
             onClick={onClose}
-            className={`flex-1 px-4 py-2 rounded-lg transition font-medium border ${
+            className={`flex-1 rounded-lg border px-4 py-2 font-medium transition ${
               darkMode
-                ? 'border-slate-700 hover:bg-slate-800 text-slate-300'
-                : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                : 'border-slate-300 text-slate-700 hover:bg-slate-100'
             }`}
           >
             Close
