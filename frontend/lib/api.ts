@@ -2,21 +2,14 @@ import { getSession } from "next-auth/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
-interface ApiResponse<T> {
-  data?: T;
-  error?: string;
-}
-
 async function getHeaders(): Promise<Record<string, string>> {
   const session = await getSession();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
-  if (session?.user) {
-    // For NextAuth JWT, we'd need to extract the token from the session
-    // This is a simplified version - adjust based on your NextAuth setup
-    headers["Authorization"] = `Bearer ${session.user.email}`;
+  if (session?.user && (session.user as any).idToken) {
+    headers["Authorization"] = `Bearer ${(session.user as any).idToken}`;
   }
 
   return headers;
