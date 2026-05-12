@@ -1,25 +1,33 @@
 package backend.util;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
 import java.util.Base64;
+import java.util.Map;
 
 @Component
 public class JwtUtil {
 
-    @Value("${app.jwt.secret:your-secret-key-change-in-production}")
-    private String jwtSecret;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String extractEmail(String token) {
-        return extractClaim(token, Claims::getSubject);
+        try {
+            Map<String, Object> claims = extractAllClaims(token);
+            return (String) claims.get("sub");
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public String extractName(String token) {
-        return (String) extractAllClaims(token).get("name");
+        try {
+            Map<String, Object> claims = extractAllClaims(token);
+            return (String) claims.get("name");
+        } catch (Exception e) {
+            return "Dev User";
+        }
     }
 
     public boolean isTokenValid(String token) {
@@ -31,23 +39,16 @@ public class JwtUtil {
         }
     }
 
-    private <T> T extractClaim(String token, java.util.function.Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
-        return claimsResolver.apply(claims);
-    }
-
-    private Claims extractAllClaims(String token) {
-        // For development: Parse the Google ID token payload without full signature verification.
-        // In a production environment, you MUST verify the signature against Google's public keys.
-        String[] parts = token.split("\\.");
-        if (parts.length < 2) {
-            throw new JwtException("Invalid token format");
+    private Map<String, Object> extractAllClaims(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length < 2) {
+                throw new JwtException("Invalid token format");
+            }
+            String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]));
+            return objectMapper.readValue(payloadJson, Map.class);
+        } catch (Exception e) {
+            throw new JwtException("Could not parse token payload", e);
         }
-        
-        return Jwts.parser()
-                .unsecured()
-                .build()
-                .parseUnsecuredClaims(parts[0] + "." + parts[1] + ".")
-                .getPayload();
     }
 }

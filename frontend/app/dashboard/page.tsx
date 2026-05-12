@@ -11,7 +11,10 @@ interface Problem {
   title: string;
   difficulty: string;
   topics: string;
-  solvedAt: string;
+  link?: string;
+  notes?: string;
+  listId?: number;
+  solvedAt?: string;
 }
 
 interface Goal {
@@ -21,15 +24,33 @@ interface Goal {
   completed: boolean;
 }
 
+interface List {
+  id: number;
+  name: string;
+  problemCount: number;
+}
+
+const DIFFICULTY_COLORS: Record<string, string> = {
+  Easy: 'bg-green-500/20 border-green-500/30 text-green-400',
+  Medium: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400',
+  Hard: 'bg-red-500/20 border-red-500/30 text-red-400',
+};
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [lists, setLists] = useState<List[]>([
+    { id: 1, name: 'Default', problemCount: 0 },
+  ]);
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(true);
   const [showProblemForm, setShowProblemForm] = useState(false);
   const [showGoalForm, setShowGoalForm] = useState(false);
+  const [showListForm, setShowListForm] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [selectedList, setSelectedList] = useState(1);
 
-  // Redirect if not authenticated
   if (status === 'unauthenticated') {
     redirect('/login');
   }
@@ -41,8 +62,8 @@ export default function Dashboard() {
           problemsApi.getAll(),
           goalsApi.getAll(),
         ]);
-        setProblems(problemsData);
-        setGoals(goalsData);
+        setProblems(problemsData || []);
+        setGoals(goalsData || []);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -58,14 +79,14 @@ export default function Dashboard() {
   const handleAddProblem = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     try {
       const newProblem = await problemsApi.create({
         title: formData.get('title') as string,
         difficulty: formData.get('difficulty') as string,
         topics: formData.get('topics') as string,
       });
-      
+
       setProblems([...problems, newProblem]);
       setShowProblemForm(false);
       (e.target as HTMLFormElement).reset();
@@ -77,18 +98,31 @@ export default function Dashboard() {
   const handleAddGoal = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     try {
       const newGoal = await goalsApi.create({
         title: formData.get('title') as string,
         dueDate: formData.get('dueDate') as string,
       });
-      
+
       setGoals([...goals, newGoal]);
       setShowGoalForm(false);
       (e.target as HTMLFormElement).reset();
     } catch (error) {
       console.error('Error adding goal:', error);
+    }
+  };
+
+  const handleAddList = () => {
+    if (newListName.trim()) {
+      const newList: List = {
+        id: Math.max(...lists.map(l => l.id), 0) + 1,
+        name: newListName,
+        problemCount: 0,
+      };
+      setLists([...lists, newList]);
+      setNewListName('');
+      setShowListForm(false);
     }
   };
 
@@ -110,24 +144,45 @@ export default function Dashboard() {
     }
   };
 
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  const bgClass = darkMode ? 'bg-slate-950' : 'bg-slate-50';
+  const textClass = darkMode ? 'text-white' : 'text-slate-900';
+  const cardClass = darkMode
+    ? 'bg-slate-900/60 border-slate-700'
+    : 'bg-white border-slate-200';
+  const inputClass = darkMode
+    ? 'bg-slate-800/50 border-slate-700 text-white placeholder-slate-400'
+    : 'bg-white border-slate-300 text-slate-900 placeholder-slate-500';
+
   if (status === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-cyan-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className={`min-h-screen ${bgClass} ${textClass} flex items-center justify-center`}>
+        <div className="text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-cyan-900 to-slate-900">
+    <div className={`min-h-screen ${bgClass} transition-colors duration-300`}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur border-b border-cyan-500/20">
+      <header className={`sticky top-0 z-50 border-b ${darkMode ? 'bg-slate-900/80 border-slate-700' : 'bg-white border-slate-200'} backdrop-blur`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-cyan-400">
+          <Link href="/" className={`text-2xl font-bold ${darkMode ? 'text-cyan-400' : 'text-cyan-600'}`}>
             DevTrack
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-cyan-100">
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-lg transition text-xl ${darkMode ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-200 hover:bg-slate-300'}`}
+              title={darkMode ? 'Light Mode' : 'Dark Mode'}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+            <span className={darkMode ? 'text-slate-300' : 'text-slate-700'}>
               Welcome, {session?.user?.name || session?.user?.email}!
             </span>
             <button
@@ -142,32 +197,93 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Stats Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          <div className="bg-slate-800/40 backdrop-blur border border-cyan-500/20 rounded-lg p-6">
-            <div className="text-cyan-400 text-sm font-semibold mb-2">PROBLEMS SOLVED</div>
-            <div className="text-4xl font-bold text-white mb-4">{problems.length}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
+            <div className={`${darkMode ? 'text-cyan-400' : 'text-cyan-600'} text-sm font-semibold mb-2`}>
+              PROBLEMS SOLVED
+            </div>
+            <div className={`text-4xl font-bold ${textClass} mb-4`}>{problems.length}</div>
             <button
               onClick={() => setShowProblemForm(!showProblemForm)}
-              className="px-4 py-2 bg-cyan-600/80 hover:bg-cyan-700 text-white rounded-lg transition w-full"
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${darkMode ? 'bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400' : 'bg-cyan-600/10 hover:bg-cyan-600/20 text-cyan-600'}`}
             >
-              {showProblemForm ? 'Cancel' : '+ Add Problem'}
+              ➕ Add Problem
             </button>
+          </div>
 
-            {showProblemForm && (
-              <form onSubmit={handleAddProblem} className="mt-4 space-y-3">
+          <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
+            <div className={`${darkMode ? 'text-purple-400' : 'text-purple-600'} text-sm font-semibold mb-2`}>
+              GOALS
+            </div>
+            <div className={`text-4xl font-bold ${textClass} mb-4`}>{goals.length}</div>
+            <button
+              onClick={() => setShowGoalForm(!showGoalForm)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${darkMode ? 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-400' : 'bg-purple-600/10 hover:bg-purple-600/20 text-purple-600'}`}
+            >
+              ➕ Add Goal
+            </button>
+          </div>
+
+          <div className={`${cardClass} border rounded-lg p-6 backdrop-blur`}>
+            <div className={`${darkMode ? 'text-green-400' : 'text-green-600'} text-sm font-semibold mb-2`}>
+              LISTS
+            </div>
+            <div className={`text-4xl font-bold ${textClass} mb-4`}>{lists.length}</div>
+            <button
+              onClick={() => setShowListForm(!showListForm)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${darkMode ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400' : 'bg-green-600/10 hover:bg-green-600/20 text-green-600'}`}
+            >
+              ➕ New List
+            </button>
+          </div>
+        </div>
+
+        {/* New List Form */}
+        {showListForm && (
+          <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
+            <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Create New List</h3>
+            <div className="flex gap-4">
+              <input
+                type="text"
+                placeholder="List name (e.g., 'Algorithms', 'Data Structures')"
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                className={`flex-1 px-4 py-2 rounded-lg border ${inputClass}`}
+              />
+              <button
+                onClick={handleAddList}
+                className={`px-6 py-2 rounded-lg transition ${darkMode ? 'bg-green-600/80 hover:bg-green-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              >
+                Create
+              </button>
+              <button
+                onClick={() => setShowListForm(false)}
+                className={`px-6 py-2 rounded-lg border transition ${darkMode ? 'border-slate-700 hover:bg-slate-800/50' : 'border-slate-300 hover:bg-slate-100'}`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Add Problem Form */}
+        {showProblemForm && (
+          <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
+            <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Add New Problem</h3>
+            <form onSubmit={handleAddProblem} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
                   name="title"
-                  placeholder="Problem Title"
+                  placeholder="Problem title"
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-cyan-400/30 rounded text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
                 />
                 <select
                   name="difficulty"
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-cyan-400/30 rounded text-white focus:outline-none focus:border-cyan-400"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
                 >
-                  <option value="">Select Difficulty</option>
                   <option value="Easy">Easy</option>
                   <option value="Medium">Medium</option>
                   <option value="Hard">Hard</option>
@@ -175,141 +291,165 @@ export default function Dashboard() {
                 <input
                   type="text"
                   name="topics"
-                  placeholder="Topics (e.g., Arrays, Strings)"
-                  required
-                  className="w-full px-3 py-2 bg-slate-700 border border-cyan-400/30 rounded text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                  placeholder="Topics (e.g., 'Array, Sorting')"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
                 />
+                <input
+                  type="url"
+                  name="link"
+                  placeholder="Problem link (optional)"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
+                />
+              </div>
+              <textarea
+                name="notes"
+                placeholder="Notes (optional)"
+                rows={3}
+                className={`w-full px-4 py-2 rounded-lg border ${inputClass}`}
+              />
+              <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="w-full px-4 py-2 bg-green-600/80 hover:bg-green-700 text-white rounded-lg transition font-semibold"
+                  className={`px-6 py-2 rounded-lg transition ${darkMode ? 'bg-cyan-600/80 hover:bg-cyan-700 text-white' : 'bg-cyan-600 hover:bg-cyan-700 text-white'}`}
                 >
                   Save Problem
                 </button>
-              </form>
-            )}
+                <button
+                  type="button"
+                  onClick={() => setShowProblemForm(false)}
+                  className={`px-6 py-2 rounded-lg border transition ${darkMode ? 'border-slate-700 hover:bg-slate-800/50' : 'border-slate-300 hover:bg-slate-100'}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
+        )}
 
-          <div className="bg-slate-800/40 backdrop-blur border border-cyan-500/20 rounded-lg p-6">
-            <div className="text-cyan-400 text-sm font-semibold mb-2">ACTIVE GOALS</div>
-            <div className="text-4xl font-bold text-white mb-4">{goals.filter(g => !g.completed).length}</div>
-            <button
-              onClick={() => setShowGoalForm(!showGoalForm)}
-              className="px-4 py-2 bg-cyan-600/80 hover:bg-cyan-700 text-white rounded-lg transition w-full"
-            >
-              {showGoalForm ? 'Cancel' : '+ Add Goal'}
-            </button>
-
-            {showGoalForm && (
-              <form onSubmit={handleAddGoal} className="mt-4 space-y-3">
+        {/* Add Goal Form */}
+        {showGoalForm && (
+          <div className={`${cardClass} border rounded-lg p-6 mb-8 backdrop-blur`}>
+            <h3 className={`text-lg font-semibold ${textClass} mb-4`}>Add New Goal</h3>
+            <form onSubmit={handleAddGoal} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input
                   type="text"
                   name="title"
-                  placeholder="Goal Title"
+                  placeholder="Goal title"
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-cyan-400/30 rounded text-white placeholder-gray-400 focus:outline-none focus:border-cyan-400"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
                 />
                 <input
                   type="date"
                   name="dueDate"
+                  defaultValue={getTodayDate()}
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-cyan-400/30 rounded text-white focus:outline-none focus:border-cyan-400"
+                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
                 />
+              </div>
+              <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="w-full px-4 py-2 bg-green-600/80 hover:bg-green-700 text-white rounded-lg transition font-semibold"
+                  className={`px-6 py-2 rounded-lg transition ${darkMode ? 'bg-purple-600/80 hover:bg-purple-700 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}
                 >
                   Save Goal
                 </button>
-              </form>
-            )}
+                <button
+                  type="button"
+                  onClick={() => setShowGoalForm(false)}
+                  className={`px-6 py-2 rounded-lg border transition ${darkMode ? 'border-slate-700 hover:bg-slate-800/50' : 'border-slate-300 hover:bg-slate-100'}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+        )}
 
         {/* Problems Section */}
         <section className="mb-12">
-          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-            <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
-            Recent Problems
-          </h2>
-          {problems.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h2 className={`text-2xl font-bold ${textClass} mb-6`}>Problems</h2>
+          {problems.length === 0 ? (
+            <div className={`${cardClass} border rounded-lg p-8 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              No problems yet. Create one to get started!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {problems.map((problem) => (
                 <div
                   key={problem.id}
-                  className="bg-slate-800/40 backdrop-blur border border-cyan-500/20 rounded-lg p-4 hover:border-cyan-500/50 transition"
+                  className={`${cardClass} border rounded-lg p-6 backdrop-blur hover:border-cyan-500/50 transition`}
                 >
-                  <h3 className="text-white font-semibold mb-2">{problem.title}</h3>
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className={`text-lg font-semibold ${textClass} flex-1`}>{problem.title}</h3>
+                    <button
+                      onClick={() => handleDeleteProblem(problem.id)}
+                      className={`p-2 rounded transition ${darkMode ? 'hover:bg-red-500/20' : 'hover:bg-red-100'} text-xl`}
+                    >
+                      🗑️
+                    </button>
+                  </div>
                   <div className="flex gap-2 mb-3">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      problem.difficulty === 'Easy' ? 'bg-green-900/40 text-green-300' :
-                      problem.difficulty === 'Medium' ? 'bg-yellow-900/40 text-yellow-300' :
-                      'bg-red-900/40 text-red-300'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${DIFFICULTY_COLORS[problem.difficulty] || DIFFICULTY_COLORS['Easy']}`}>
                       {problem.difficulty}
                     </span>
-                    <span className="text-xs px-2 py-1 rounded bg-cyan-900/40 text-cyan-300">
-                      {problem.topics}
-                    </span>
                   </div>
-                  <button
-                    onClick={() => handleDeleteProblem(problem.id)}
-                    className="w-full px-3 py-1 text-sm bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded transition"
-                  >
-                    Delete
-                  </button>
+                  {problem.topics && (
+                    <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-2`}>
+                      Topics: {problem.topics}
+                    </p>
+                  )}
+                  {problem.link && (
+                    <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-2 truncate`}>
+                      <a href={problem.link} target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline">
+                        View Problem
+                      </a>
+                    </p>
+                  )}
+                  {problem.notes && (
+                    <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm line-clamp-2`}>
+                      Notes: {problem.notes}
+                    </p>
+                  )}
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              No problems added yet. Start by adding your first problem!
             </div>
           )}
         </section>
 
         {/* Goals Section */}
         <section>
-          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-            <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
-            Your Goals
-          </h2>
-          {goals.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <h2 className={`text-2xl font-bold ${textClass} mb-6`}>Goals</h2>
+          {goals.length === 0 ? (
+            <div className={`${cardClass} border rounded-lg p-8 text-center ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+              No goals yet. Create one to get started!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {goals.map((goal) => (
                 <div
                   key={goal.id}
-                  className={`backdrop-blur border rounded-lg p-4 hover:border-cyan-500/50 transition ${
-                    goal.completed
-                      ? 'bg-slate-800/20 border-gray-500/20'
-                      : 'bg-slate-800/40 border-cyan-500/20'
-                  }`}
+                  className={`${cardClass} border rounded-lg p-6 backdrop-blur hover:border-purple-500/50 transition`}
                 >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className={`font-semibold ${goal.completed ? 'text-gray-400 line-through' : 'text-white'}`}>
-                      {goal.title}
-                    </h3>
-                    <input
-                      type="checkbox"
-                      checked={goal.completed}
-                      readOnly
-                      className="w-5 h-5 accent-cyan-400"
-                    />
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className={`text-lg font-semibold ${textClass} flex-1`}>{goal.title}</h3>
+                    <button
+                      onClick={() => handleDeleteGoal(goal.id)}
+                      className={`p-2 rounded transition ${darkMode ? 'hover:bg-red-500/20' : 'hover:bg-red-100'} text-xl`}
+                    >
+                      🗑️
+                    </button>
                   </div>
-                  <p className="text-sm text-gray-400 mb-3">
-                    Due: {new Date(goal.dueDate).toLocaleDateString()}
-                  </p>
-                  <button
-                    onClick={() => handleDeleteGoal(goal.id)}
-                    className="w-full px-3 py-1 text-sm bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded transition"
-                  >
-                    Delete
-                  </button>
+                  <div className={`flex items-center justify-between`}>
+                    <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm`}>
+                      Due: {new Date(goal.dueDate).toLocaleDateString()}
+                    </p>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${goal.completed ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>
+                      {goal.completed ? '✓ Completed' : 'In Progress'}
+                    </span>
+                  </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              No goals added yet. Set your learning goals!
             </div>
           )}
         </section>

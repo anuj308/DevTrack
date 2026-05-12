@@ -19,12 +19,11 @@ async function getHeaders(): Promise<Record<string, string>> {
 export const problemsApi = {
   getAll: async () => {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_URL}/problems`, {
         method: "GET",
         mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
       if (!response.ok) throw new Error("Failed to fetch problems");
       return await response.json();
@@ -36,12 +35,11 @@ export const problemsApi = {
 
   getOne: async (id: number) => {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_URL}/problems/${id}`, {
         method: "GET",
         mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
       if (!response.ok) throw new Error("Failed to fetch problem");
       return await response.json();
@@ -101,12 +99,11 @@ export const problemsApi = {
 export const goalsApi = {
   getAll: async () => {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_URL}/goals`, {
         method: "GET",
         mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
       if (!response.ok) throw new Error("Failed to fetch goals");
       return await response.json();
@@ -118,12 +115,11 @@ export const goalsApi = {
 
   getOne: async (id: number) => {
     try {
+      const headers = await getHeaders();
       const response = await fetch(`${API_URL}/goals/${id}`, {
         method: "GET",
         mode: "cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
       if (!response.ok) throw new Error("Failed to fetch goal");
       return await response.json();
