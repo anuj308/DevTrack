@@ -234,27 +234,20 @@ created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ## 🐳 Docker
 
-### Build and run with Docker Compose
-Create a root `.env` file with backend and frontend environment variables:
+### Backend-only Docker (Frontend stays on Vercel)
+Create a root `.env` file with backend environment variables:
 ```env
 DB_URL=jdbc:postgresql://your-supabase-host:6543/postgres?prepareThreshold=0
 DB_USERNAME=postgres.your-project-id
 DB_PASSWORD=your-supabase-password
-
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-nextauth-secret
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-NEXT_PUBLIC_API_URL=http://localhost:8080/api
 ```
 
-Run both services:
+Run backend service:
 ```bash
 docker compose up --build
 ```
 
 Services:
-- Frontend: `http://localhost:3000`
 - Backend: `http://localhost:8080`
 
 ---
@@ -265,7 +258,39 @@ CI workflow is defined in `.github/workflows/ci.yml` and runs on push/PR:
 - Backend job: Java 17 + Maven build (`./mvnw clean package -DskipTests`)
 - Frontend job: Node 20 + `npm ci`, lint, and production build
 
+Docker publish workflow is defined in `.github/workflows/backend-docker.yml`:
+- Trigger: push to `main`/`master` when backend changes
+- Builds backend jar with Maven wrapper
+- Builds Docker image from `backend/Dockerfile`
+- Pushes to Docker Hub: `<DOCKERHUB_USERNAME>/devtrack-backend:latest` and `:sha-*`
+
 You can see workflow runs in the GitHub repository Actions tab.
+
+---
+
+## 🚦 Recommended Release Flow
+
+1. Push code to GitHub (`main`/`master`).
+2. GitHub Actions `CI` validates backend + frontend build.
+3. GitHub Actions `Backend Docker Publish` builds and pushes backend Docker image to Docker Hub.
+4. On EC2, pull latest backend image and restart container.
+5. Frontend remains deployed on Vercel (no frontend container on EC2).
+
+EC2 update commands:
+```bash
+docker pull <dockerhub-username>/devtrack-backend:latest
+docker stop devtrack-backend || true
+docker rm devtrack-backend || true
+docker run -d \
+	--name devtrack-backend \
+	-p 8080:8080 \
+	-e DB_URL="..." \
+	-e DB_USERNAME="..." \
+	-e DB_PASSWORD="..." \
+	-e DB_DRIVER="org.postgresql.Driver" \
+	--restart unless-stopped \
+	<dockerhub-username>/devtrack-backend:latest
+```
 
 ---
 
@@ -303,12 +328,3 @@ You can see workflow runs in the GitHub repository Actions tab.
 ## 📝 License
 
 MIT
-
-npm run dev
-```
-
----
-
-## 📝 License
-
-MIT License
