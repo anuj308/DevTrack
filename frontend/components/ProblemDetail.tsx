@@ -4,7 +4,6 @@ interface Problem {
   id: number;
   title: string;
   difficulty: string;
-  topics: string;
   link?: string;
   notes?: string;
   listId?: number;
@@ -73,24 +72,6 @@ export default function ProblemDetail({
               <div className={`rounded-xl border p-4 ${borderClass} ${darkMode ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
                 <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>List</p>
                 <p className={textClass}>{problem.listName}</p>
-              </div>
-            )}
-
-            {problem.topics && (
-              <div>
-                <p className={`mb-2 text-sm font-semibold ${secondaryText}`}>Topics</p>
-                <div className="flex flex-wrap gap-2">
-                  {problem.topics.split(',').map((topic, index) => (
-                    <span
-                      key={index}
-                      className={`rounded-full px-3 py-1 text-sm ${
-                        darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'
-                      }`}
-                    >
-                      {topic.trim()}
-                    </span>
-                  ))}
-                </div>
               </div>
             )}
           </div>

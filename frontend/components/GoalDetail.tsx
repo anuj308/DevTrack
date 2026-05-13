@@ -51,20 +51,20 @@ export default function GoalDetail({
   const secondaryText = darkMode ? 'text-slate-400' : 'text-slate-600';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 animate-in fade-in sm:items-center">
       <div
-        className={`${bgClass} w-full sm:w-2/3 lg:w-1/2 max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border ${borderClass} shadow-2xl animate-in slide-in-from-bottom-5 sm:slide-in-from-center-0`}
+        className={`${bgClass} w-full max-h-[85vh] overflow-y-auto rounded-t-2xl border ${borderClass} shadow-2xl animate-in slide-in-from-bottom-5 sm:w-2/3 sm:rounded-2xl lg:w-1/2`}
       >
         {/* Header */}
-        <div className={`sticky top-0 ${bgClass} border-b ${borderClass} px-6 py-4 flex justify-between items-start`}>
+        <div className={`sticky top-0 ${bgClass} border-b ${borderClass} flex items-start justify-between px-5 py-3`}>
           <div className="flex-1">
-            <h2 className={`text-2xl font-bold ${textClass} break-words`}>
+            <h2 className={`text-xl font-bold ${textClass} wrap-break-word`}>
               {goal.title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className={`ml-4 p-2 rounded-lg transition flex-shrink-0 ${
+            className={`ml-4 shrink-0 rounded-lg p-2 transition ${
               darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
             }`}
           >
@@ -73,20 +73,18 @@ export default function GoalDetail({
         </div>
 
         {/* Content */}
-        <div className="px-6 py-6 space-y-6">
+        <div className="space-y-4 px-5 py-4">
           {/* Status */}
-          <div
-            className={`p-4 rounded-lg border ${getStatusColor()}`}
-          >
+          <div className={`rounded-lg border p-3 ${getStatusColor()}`}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold opacity-75">Status</p>
-                <p className="text-lg font-bold mt-1">{getStatusText()}</p>
+                <p className="mt-1 text-base font-bold">{getStatusText()}</p>
               </div>
               {!goal.completed && onToggleComplete && (
                 <button
                   onClick={() => onToggleComplete(goal.id, true)}
-                  className="px-4 py-2 bg-green-600/80 hover:bg-green-700 text-white rounded-lg transition font-medium"
+                  className="rounded-lg bg-green-600/80 px-3 py-2 font-medium text-white transition hover:bg-green-700"
                 >
                   ✓ Mark Done
                 </button>
@@ -94,7 +92,7 @@ export default function GoalDetail({
               {goal.completed && onToggleComplete && (
                 <button
                   onClick={() => onToggleComplete(goal.id, false)}
-                  className={`px-4 py-2 rounded-lg transition font-medium border ${
+                  className={`rounded-lg border px-3 py-2 font-medium transition ${
                     darkMode
                       ? 'border-slate-700 hover:bg-slate-800'
                       : 'border-slate-300 hover:bg-slate-100'
@@ -107,13 +105,13 @@ export default function GoalDetail({
           </div>
 
           {/* Due Date */}
-          <div className={`p-4 rounded-lg border ${borderClass} ${
+          <div className={`rounded-lg border p-3 ${borderClass} ${
             darkMode ? 'bg-slate-800/30' : 'bg-slate-50'
           }`}>
             <p className={`text-sm font-semibold ${secondaryText} mb-2`}>
               Due Date
             </p>
-            <p className={`text-lg font-mono ${textClass}`}>
+            <p className={`text-base font-mono ${textClass}`}>
               {dueDate.toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -124,7 +122,7 @@ export default function GoalDetail({
           </div>
 
           {/* Metadata */}
-          <div className={`pt-4 border-t ${borderClass} space-y-2`}>
+          <div className={`space-y-2 border-t pt-3 ${borderClass}`}>
             <div className="flex justify-between">
               <span className={secondaryText}>Goal ID:</span>
               <span className={textClass}>{goal.id}</span>
@@ -137,11 +135,11 @@ export default function GoalDetail({
         </div>
 
         {/* Actions */}
-        <div className={`border-t ${borderClass} px-6 py-4 flex gap-3 bg-slate-800/20`}>
+        <div className={`flex gap-3 border-t px-5 py-3 ${borderClass} bg-slate-800/20`}>
           {onEdit && (
             <button
               onClick={() => onEdit(goal)}
-              className="flex-1 px-4 py-2 bg-cyan-600/80 hover:bg-cyan-700 text-white rounded-lg transition font-medium"
+              className="flex-1 rounded-lg bg-cyan-600/80 px-3 py-2 font-medium text-white transition hover:bg-cyan-700"
             >
               ✏️ Edit
             </button>
@@ -152,14 +150,14 @@ export default function GoalDetail({
                 onDelete(goal.id);
                 onClose();
               }}
-              className="flex-1 px-4 py-2 bg-red-600/80 hover:bg-red-700 text-white rounded-lg transition font-medium"
+              className="flex-1 rounded-lg bg-red-600/80 px-3 py-2 font-medium text-white transition hover:bg-red-700"
             >
               🗑️ Delete
             </button>
           )}
           <button
             onClick={onClose}
-            className={`flex-1 px-4 py-2 rounded-lg transition font-medium border ${
+            className={`flex-1 rounded-lg border px-3 py-2 font-medium transition ${
               darkMode
                 ? 'border-slate-700 hover:bg-slate-800 text-slate-300'
                 : 'border-slate-300 hover:bg-slate-100 text-slate-700'

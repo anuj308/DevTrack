@@ -52,7 +52,6 @@ export const problemsApi = {
   create: async (problem: {
     title: string;
     difficulty: string;
-    topics: string;
     link?: string;
     notes?: string;
     listId?: number;
@@ -149,6 +148,27 @@ export const goalsApi = {
       return await response.json();
     } catch (error) {
       console.error("Error creating goal:", error);
+      throw error;
+    }
+  },
+
+  updateCompletion: async (id: number, completed: boolean) => {
+    try {
+      const headers = await getHeaders();
+      const response = await fetch(`${API_URL}/goals/${id}/complete`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ completed }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update goal");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error updating goal:", error);
       throw error;
     }
   },

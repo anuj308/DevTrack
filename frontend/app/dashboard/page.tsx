@@ -12,7 +12,6 @@ interface Problem {
   id: number;
   title: string;
   difficulty: string;
-  topics: string;
   link?: string;
   notes?: string;
   listId?: number;
@@ -228,7 +227,6 @@ export default function Dashboard() {
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get('title') || '').trim();
     const difficulty = String(formData.get('difficulty') || 'Easy');
-    const topics = String(formData.get('topics') || '').trim();
     const link = String(formData.get('link') || '').trim();
     const notes = String(formData.get('notes') || '').trim();
     const query = problemListQuery.trim();
@@ -256,7 +254,6 @@ export default function Dashboard() {
       const createdProblem = await problemsApi.create({
         title,
         difficulty,
-        topics,
         link: link || undefined,
         notes: notes || undefined,
         listId: targetList.id,
@@ -267,8 +264,11 @@ export default function Dashboard() {
       setLists((current) => refreshCounts(current, nextProblems));
       setSelectedList(targetList.id);
       setProblemListQuery(targetList.name);
+      // Reset form before closing to avoid null reference
+      if (event.currentTarget) {
+        event.currentTarget.reset();
+      }
       setShowProblemForm(false);
-      event.currentTarget.reset();
     } catch (error) {
       console.error('Error adding problem:', error);
     }
@@ -314,6 +314,18 @@ export default function Dashboard() {
     }
   };
 
+  const handleToggleGoalComplete = async (goalId: number, completed: boolean) => {
+    try {
+      const updatedGoal = await goalsApi.updateCompletion(goalId, completed);
+      setGoals((current) => current.map((goal) => (goal.id === goalId ? updatedGoal : goal)));
+      if (selectedGoal?.id === goalId) {
+        setSelectedGoal(updatedGoal);
+      }
+    } catch (error) {
+      console.error('Error updating goal completion:', error);
+    }
+  };
+
   if (status === 'loading' || loading) {
     return (
       <div className={`min-h-screen ${bgClass} ${textClass} flex items-center justify-center`}>
@@ -325,11 +337,11 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen ${bgClass} transition-colors duration-300`}>
       <header
-        className={`sticky top-0 z-40 border-b backdrop-blur ${
+        className={`fixed top-0 left-0 right-0 z-40 border-b backdrop-blur ${
           darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/85 border-slate-200'
         }`}
       >
-        <div className={`flex items-center justify-between gap-4 px-4 py-4 ${sidebarWidthClass}`}>
+        <div className="flex items-center justify-between gap-4 px-4 py-4">
           <div>
             <p className={`text-xs uppercase tracking-[0.3em] ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
               DevTrack
@@ -341,16 +353,6 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarCollapsed((current) => !current)}
-              className={`rounded-full border px-3 py-2 text-sm transition ${
-                darkMode
-                  ? 'border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              {sidebarCollapsed ? 'Open sidebar' : 'Collapse sidebar'}
-            </button>
             <button
               onClick={() => setDarkMode((current) => !current)}
               className={`rounded-full px-3 py-2 text-sm transition ${
@@ -384,7 +386,7 @@ export default function Dashboard() {
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
       />
 
-      <main className={`px-4 py-8 ${sidebarWidthClass}`}>
+        <main className={`px-4 py-8 pt-32 ${sidebarWidthClass}`}>
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <button
             onClick={() => setActiveTab('problems')}
@@ -494,15 +496,7 @@ export default function Dashboard() {
                         <option>Hard</option>
                       </select>
                     </div>
-                    <div>
-                      <label className={`mb-2 block text-sm font-medium ${textClass}`}>Topics</label>
-                      <input
-                        name="topics"
-                        placeholder="Array, Hash Map"
-                        className={`w-full rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
-                      />
-                    </div>
-                    <div>
+                      <div>
                       <label className={`mb-2 block text-sm font-medium ${textClass}`}>Problem URL</label>
                       <input
                         name="link"
@@ -742,9 +736,9 @@ export default function Dashboard() {
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-4">
               {goals.length === 0 ? (
-                <div className={`${panelClass} rounded-3xl border p-10 text-center md:col-span-2`}>
+                <div className={`${panelClass} rounded-3xl border p-10 text-center`}>
                   <p className={`text-lg ${textClass}`}>No goals yet.</p>
                   <button
                     onClick={() => setShowGoalForm(true)}
@@ -757,40 +751,53 @@ export default function Dashboard() {
                 goals.map((goal) => (
                   <article
                     key={goal.id}
-                    className={`${panelClass} rounded-3xl border px-5 py-4 transition hover:-translate-y-0.5 hover:border-cyan-500/40`}
+                    className={`${panelClass} rounded-2xl border px-4 py-3 transition hover:-translate-y-0.5 hover:border-cyan-500/40 ${
+                      goal.completed ? 'border-emerald-500/40 bg-emerald-500/5' : ''
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
                         <button
                           onClick={() => setSelectedGoal(goal)}
-                          className={`text-left text-lg font-semibold ${textClass} hover:text-cyan-400`}
+                          className={`text-left text-base font-semibold ${textClass} hover:text-cyan-400 line-clamp-1`}
                         >
                           {goal.title}
                         </button>
-                        <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                          Due {new Date(goal.dueDate).toLocaleDateString()}
-                        </p>
+                        <div className={`mt-1 flex flex-wrap items-center gap-2 text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                          <span>Due {new Date(goal.dueDate).toLocaleDateString()}</span>
+                          {goal.completed && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-300">Completed</span>}
+                        </div>
                       </div>
                       <span
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                        className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap ${
                           goal.completed
-                            ? 'bg-emerald-500/15 text-emerald-300'
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                             : 'bg-sky-500/15 text-sky-300'
                         }`}
                       >
                         {goal.completed ? 'Completed' : 'Active'}
                       </span>
                     </div>
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-3 flex justify-end gap-2">
                       <button
                         onClick={() => setSelectedGoal(goal)}
-                        className={`rounded-2xl border px-4 py-2 text-sm font-medium transition ${
+                        className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
                           darkMode
                             ? 'border-slate-700 text-slate-200 hover:bg-slate-800'
                             : 'border-slate-300 text-slate-700 hover:bg-slate-100'
                         }`}
                       >
                         Open
+                      </button>
+                      <button
+                        onClick={() => handleToggleGoalComplete(goal.id, !goal.completed)}
+                        className={`rounded-xl px-3 py-2 text-xs font-medium transition ${
+                          goal.completed
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                            : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400'
+                        }`}
+                      >
+                        {goal.completed ? 'Done' : 'Mark done'}
                       </button>
                     </div>
                   </article>
@@ -815,6 +822,7 @@ export default function Dashboard() {
           goal={selectedGoal}
           onClose={() => setSelectedGoal(null)}
           onDelete={handleDeleteGoal}
+          onToggleComplete={handleToggleGoalComplete}
           darkMode={darkMode}
         />
       )}

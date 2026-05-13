@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/goals")
@@ -41,14 +42,14 @@ public class GoalController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Goal> get(@PathVariable Long id) {
+    public ResponseEntity<Goal> get(@PathVariable long id) {
         return goalRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<?> delete(@PathVariable long id, HttpServletRequest request) {
         // Check for JWT token
         String userEmail = (String) request.getAttribute("userEmail");
         if (userEmail == null) {
@@ -61,6 +62,29 @@ public class GoalController {
         
         goalRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/complete")
+    public ResponseEntity<?> updateCompletion(@PathVariable long id,
+                                              @RequestBody Map<String, Boolean> payload,
+                                              HttpServletRequest request) {
+        String userEmail = (String) request.getAttribute("userEmail");
+        if (userEmail == null) {
+            return ResponseEntity.status(401).body("{\"error\": \"Authentication required\"}");
+        }
+
+        Goal goal = goalRepository.findById(id).orElse(null);
+        if (goal == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Boolean completed = payload.get("completed");
+        if (completed != null) {
+            goal.setCompleted(completed);
+        }
+
+        Goal saved = goalRepository.save(goal);
+        return ResponseEntity.ok(saved);
     }
 }
 
