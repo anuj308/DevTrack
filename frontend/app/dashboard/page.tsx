@@ -387,7 +387,11 @@ export default function Dashboard() {
       />
 
         <main className={`px-4 py-8 pt-32 ${sidebarWidthClass}`}>
-        <div className="mb-8 flex flex-wrap items-center gap-3">
+        <div
+          className={`mb-8 flex flex-wrap items-center gap-3 sticky top-24 z-30 py-2 ${
+            darkMode ? 'bg-slate-950/90' : 'bg-slate-50/90'
+          } backdrop-blur`}
+        >
           <button
             onClick={() => setActiveTab('problems')}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
@@ -400,6 +404,7 @@ export default function Dashboard() {
           >
             Problems
           </button>
+
           <button
             onClick={() => setActiveTab('goals')}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
@@ -412,8 +417,33 @@ export default function Dashboard() {
           >
             Goals
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('problems');
+              setShowProblemForm(true);
+            }}
+            className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+          >
+            + Add Problem
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('goals');
+              setShowGoalForm(true);
+            }}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              darkMode
+                ? 'bg-slate-800 text-slate-100 hover:bg-slate-700'
+                : 'bg-white text-slate-800 hover:bg-slate-100 border border-slate-300'
+            }`}
+          >
+            + Add Goal
+          </button>
+
           <span className={`ml-auto text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-            {visibleProblems.length} problems in view
+            {activeTab === 'problems' ? `${visibleProblems.length} problems in view` : `${goals.length} goals`}
           </span>
         </div>
 
