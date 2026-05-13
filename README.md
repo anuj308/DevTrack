@@ -49,6 +49,12 @@ mvn clean package -DskipTests
 mvn spring-boot:run
 ```
 
+Run backend tests locally:
+```bash
+cd backend
+mvn test
+```
+
 Or build and run the generated jar:
 ```bash
 cd backend
@@ -339,6 +345,7 @@ Services:
 
 Docker publish workflow is defined in `.github/workflows/backend-docker.yml`:
 - Trigger: push to `main`/`master` when backend changes
+- Runs backend tests with `./mvnw -B test`
 - Builds backend jar with Maven wrapper
 - Builds Docker image from `backend/Dockerfile`
 - Pushes to Docker Hub: `<DOCKERHUB_USERNAME>/devtrack-backend:latest` and `:sha-*`
@@ -377,6 +384,10 @@ EC2 update commands are listed above in **Manual EC2 Update Commands**.
 ### Database errors
 - Run `mvn clean` and rebuild
 - Verify `prepareThreshold=0` in DB_URL (disables prepared statements)
+
+### Backend tests fail in CI
+- Run `cd backend && mvn test` locally
+- The test profile uses H2 in-memory instead of Supabase
 
 ---
 

@@ -26,6 +26,7 @@ jobs:
         working-directory: backend
         run: |
           chmod +x mvnw
+          ./mvnw -B test
           ./mvnw -B clean package -DskipTests
 
       - name: Set up Docker Buildx
