@@ -11,7 +11,6 @@ interface Problem {
   id: number;
   title: string;
   difficulty: string;
-  topics: string;
   link?: string;
   notes?: string;
   listId?: number;
@@ -85,7 +84,6 @@ export default function Dashboard() {
       const newProblem = await problemsApi.create({
         title: formData.get('title') as string,
         difficulty: formData.get('difficulty') as string,
-        topics: formData.get('topics') as string,
       });
 
       setProblems([...problems, newProblem]);
@@ -289,12 +287,6 @@ export default function Dashboard() {
                   <option value="Hard">Hard</option>
                 </select>
                 <input
-                  type="text"
-                  name="topics"
-                  placeholder="Topics (e.g., 'Array, Sorting')"
-                  className={`px-4 py-2 rounded-lg border ${inputClass}`}
-                />
-                <input
                   type="url"
                   name="link"
                   placeholder="Problem link (optional)"
@@ -394,11 +386,6 @@ export default function Dashboard() {
                       {problem.difficulty}
                     </span>
                   </div>
-                  {problem.topics && (
-                    <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-2`}>
-                      Topics: {problem.topics}
-                    </p>
-                  )}
                   {problem.link && (
                     <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'} text-sm mb-2 truncate`}>
                       <a href={problem.link} target="_blank" rel="noopener noreferrer" className="text-cyan-500 hover:underline">

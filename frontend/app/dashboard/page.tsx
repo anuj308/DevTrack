@@ -642,9 +642,6 @@ export default function Dashboard() {
                             {problem.listName || 'Default'}
                           </span>
                         </div>
-                        <p className={`mt-2 text-sm ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {problem.topics || 'No topics added'}
-                        </p>
                         {problem.notes && (
                           <p className={`mt-2 line-clamp-2 text-sm ${darkMode ? 'text-slate-500' : 'text-slate-600'}`}>
                             {problem.notes}

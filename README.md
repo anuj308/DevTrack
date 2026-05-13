@@ -235,6 +235,86 @@ created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
 ---
 
+## ⚙️ Manual Commands
+
+### Local Manual Run (Maven + Next.js)
+
+Backend (Maven only):
+```bash
+cd backend
+mvn clean package -DskipTests
+mvn spring-boot:run
+```
+
+Frontend:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Local Production Build Checks
+
+Backend:
+```bash
+cd backend
+mvn clean package -DskipTests
+```
+
+Frontend:
+```bash
+cd frontend
+npm run build
+```
+
+### Manual Docker Build and Run (Backend)
+
+Build image from Dockerfile:
+```bash
+cd backend
+docker build -t devtrack-backend:local .
+```
+
+Run container manually:
+```bash
+docker run -d \
+	--name devtrack-backend \
+	-p 8080:8080 \
+	-e DB_URL="jdbc:postgresql://your-supabase-host:6543/postgres?prepareThreshold=0" \
+	-e DB_USERNAME="postgres.your-project-id" \
+	-e DB_PASSWORD="your-supabase-password" \
+	-e DB_DRIVER="org.postgresql.Driver" \
+	--restart unless-stopped \
+	devtrack-backend:local
+```
+
+### Manual Docker Hub Push (Without GitHub Actions)
+
+```bash
+docker login
+docker tag devtrack-backend:local <dockerhub-username>/devtrack-backend:latest
+docker push <dockerhub-username>/devtrack-backend:latest
+```
+
+### Manual EC2 Update Commands
+
+```bash
+docker pull <dockerhub-username>/devtrack-backend:latest
+docker stop devtrack-backend || true
+docker rm devtrack-backend || true
+docker run -d \
+	--name devtrack-backend \
+	-p 8080:8080 \
+	-e DB_URL="..." \
+	-e DB_USERNAME="..." \
+	-e DB_PASSWORD="..." \
+	-e DB_DRIVER="org.postgresql.Driver" \
+	--restart unless-stopped \
+	<dockerhub-username>/devtrack-backend:latest
+```
+
+---
+
 ## 🐳 Docker
 
 ### Backend-only Docker (Frontend stays on Vercel)
@@ -257,15 +337,15 @@ Services:
 
 ## 🤖 GitHub Actions
 
-CI workflow is defined in `.github/workflows/ci.yml` and runs on push/PR:
-- Backend job: Java 17 + Maven build (`./mvnw clean package -DskipTests`)
-- Frontend job: Node 20 + `npm ci`, lint, and production build
-
 Docker publish workflow is defined in `.github/workflows/backend-docker.yml`:
 - Trigger: push to `main`/`master` when backend changes
 - Builds backend jar with Maven wrapper
 - Builds Docker image from `backend/Dockerfile`
 - Pushes to Docker Hub: `<DOCKERHUB_USERNAME>/devtrack-backend:latest` and `:sha-*`
+
+Required GitHub Secrets for Docker publish:
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
 
 You can see workflow runs in the GitHub repository Actions tab.
 
@@ -274,26 +354,11 @@ You can see workflow runs in the GitHub repository Actions tab.
 ## 🚦 Recommended Release Flow
 
 1. Push code to GitHub (`main`/`master`).
-2. GitHub Actions `CI` validates backend + frontend build.
-3. GitHub Actions `Backend Docker Publish` builds and pushes backend Docker image to Docker Hub.
-4. On EC2, pull latest backend image and restart container.
-5. Frontend remains deployed on Vercel (no frontend container on EC2).
+2. GitHub Actions `Backend Docker Publish` builds and pushes backend Docker image to Docker Hub.
+3. On EC2, pull latest backend image and restart container.
+4. Frontend remains deployed on Vercel (no frontend container on EC2).
 
-EC2 update commands:
-```bash
-docker pull <dockerhub-username>/devtrack-backend:latest
-docker stop devtrack-backend || true
-docker rm devtrack-backend || true
-docker run -d \
-	--name devtrack-backend \
-	-p 8080:8080 \
-	-e DB_URL="..." \
-	-e DB_USERNAME="..." \
-	-e DB_PASSWORD="..." \
-	-e DB_DRIVER="org.postgresql.Driver" \
-	--restart unless-stopped \
-	<dockerhub-username>/devtrack-backend:latest
-```
+EC2 update commands are listed above in **Manual EC2 Update Commands**.
 
 ---
 
@@ -310,7 +375,7 @@ docker run -d \
 - Ensure `NEXT_PUBLIC_API_URL` in `.env.local` matches
 
 ### Database errors
-- Run `./mvnw clean` and rebuild
+- Run `mvn clean` and rebuild
 - Verify `prepareThreshold=0` in DB_URL (disables prepared statements)
 
 ---
