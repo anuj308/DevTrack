@@ -29,6 +29,12 @@ jobs:
           ./mvnw -B test
           ./mvnw -B clean package -DskipTests
 
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target/backend-0.0.1-SNAPSHOT.jar
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
