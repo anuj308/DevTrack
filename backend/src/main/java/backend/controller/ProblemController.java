@@ -22,6 +22,7 @@ public class ProblemController {
         this.problemListRepository = problemListRepository;
     }
 
+    // test
     @GetMapping
     public ResponseEntity<List<Problem>> list(HttpServletRequest request) {
         // JWT token is optional for GET requests
