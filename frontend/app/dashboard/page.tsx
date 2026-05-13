@@ -48,6 +48,13 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const [problems, setProblems] = useState<Problem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+
+  // Redirect to home if session is unauthenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      redirect('/');
+    }
+  }, [status]);
   const [lists, setLists] = useState<ListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
@@ -278,7 +285,10 @@ export default function Dashboard() {
       });
       setGoals((current) => [...current, createdGoal]);
       setShowGoalForm(false);
-      event.currentTarget.reset();
+      // Reset form if it exists
+      if (event.currentTarget) {
+        event.currentTarget.reset();
+      }
     } catch (error) {
       console.error('Error adding goal:', error);
     }

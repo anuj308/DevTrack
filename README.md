@@ -42,14 +42,17 @@ DB_DRIVER=org.postgresql.Driver
 - Copy the host, port, user, and password
 
 #### Step 2: Build and Run Backend
-Build jar with Maven Wrapper (this downloads/uses Maven automatically):
+Build and run using Maven (system `mvn`):
 ```bash
 cd backend
-./mvnw clean package -DskipTests
+mvn clean package -DskipTests
+mvn spring-boot:run
 ```
 
-Run the generated jar:
+Or build and run the generated jar:
 ```bash
+cd backend
+mvn clean package -DskipTests
 java -jar target/backend-0.0.1-SNAPSHOT.jar
 ```
 
@@ -115,7 +118,7 @@ npm run dev
 ### Terminal 1: Backend
 ```bash
 cd backend
-java -jar target/backend-0.0.1-SNAPSHOT.jar
+mvn spring-boot:run
 # Backend starts on :8080 connected to Supabase
 ```
 
